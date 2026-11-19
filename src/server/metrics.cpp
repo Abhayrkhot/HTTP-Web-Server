@@ -1,7 +1,9 @@
 #include "server/metrics.h"
 
+#include <fcntl.h>
 #include <unistd.h>
 
+#include <charconv>
 #include <cstdio>
 
 namespace hws {
@@ -34,14 +36,21 @@ uint64_t sum(const std::vector<const WorkerMetrics*>& ws, F&& f) {
 }  // namespace
 
 uint64_t resident_memory_bytes() noexcept {
-  FILE* f = std::fopen("/proc/self/statm", "r");
-  if (f == nullptr) return 0;
-  unsigned long size = 0;
-  unsigned long resident = 0;
-  const int n = std::fscanf(f, "%lu %lu", &size, &resident);
-  std::fclose(f);
-  if (n != 2) return 0;
-  return static_cast<uint64_t>(resident) * static_cast<uint64_t>(sysconf(_SC_PAGESIZE));
+  // "size resident shared ..." in pages. Parsed by hand: no stdio, and no dependence on the
+  // C23-redirected scanf/strtol symbols that newer glibc headers emit.
+  const int fd = ::open("/proc/self/statm", O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return 0;
+  char buf[128];
+  const ssize_t n = ::read(fd, buf, sizeof(buf) - 1);
+  ::close(fd);
+  if (n <= 0) return 0;
+  const char* p = buf;
+  const char* end = buf + n;
+  while (p < end && *p != ' ') ++p;  // skip "size"
+  if (p < end) ++p;
+  uint64_t pages = 0;
+  if (std::from_chars(p, end, pages).ec != std::errc{}) return 0;
+  return pages * static_cast<uint64_t>(sysconf(_SC_PAGESIZE));
 }
 
 std::string render_prometheus(const std::vector<const WorkerMetrics*>& ws, const ProcessInfo& info) {

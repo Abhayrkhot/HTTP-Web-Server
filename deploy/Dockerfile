@@ -1,7 +1,8 @@
-# Multi-stage build: compile on Ubuntu, run on distroless as a non-root user.
+# Multi-stage build: compile on Debian 12, run on distroless Debian 12 as a non-root user. The two
+# stages share a glibc version, so the binary never needs symbols newer than the runtime has.
 #   docker build -f deploy/Dockerfile -t hws .
 #   docker run -p 8080:8080 -v "$PWD/www:/srv/www:ro" hws
-ARG BUILD_IMAGE=ubuntu:24.04
+ARG BUILD_IMAGE=debian:bookworm-slim
 ARG RUNTIME_IMAGE=gcr.io/distroless/base-debian12:nonroot
 
 FROM ${BUILD_IMAGE} AS build

@@ -4,7 +4,7 @@
 # do not steal cycles from each other, and runs are interleaved server-by-server per round so
 # background noise hits every contender equally.
 #
-#   bench/run.sh                      # all scenarios, 3 rounds
+#   bench/run.sh                      # all scenarios (latency uses wrk2 at LAT_RATE req/s), 3 rounds
 #   ROUNDS=5 SCENARIOS="hello file1k" bench/run.sh
 #
 # Environment:
@@ -28,7 +28,7 @@ SERVER_CPUS=${SERVER_CPUS:-0-3}
 CLIENT_CPUS=${CLIENT_CPUS:-4-11}
 DURATION=${DURATION:-15}
 ROUNDS=${ROUNDS:-3}
-SCENARIOS=${SCENARIOS:-"hello file1k file16k file1m pipeline close"}
+SCENARIOS=${SCENARIOS:-"hello file1k file16k file1m pipeline close latency"}
 WRK_THREADS=${WRK_THREADS:-8}
 CONNS=${CONNS:-256}
 OUT=${OUT:-$repo/bench/results/raw/$(date +%Y%m%d-%H%M%S)}
@@ -119,25 +119,74 @@ url_for() {  # server scenario
   echo "http://$ADDR:$port$path"
 }
 
+server_pids() {  # PIDs whose CPU time counts as "the server"
+  case $1 in
+    hws) echo "${pids[-1]}" ;;
+    nginx) pgrep -P "$(cat "$work/nginx/nginx.pid")" | tr '\n' ' ' ;;
+    old) pgrep -f '[h]ttpcgiservermain' | tr '\n' ' ' ;;
+  esac
+}
+
+cpu_ticks() {  # utime+stime of the given processes (all threads), in clock ticks
+  local total=0 p
+  for p in "$@"; do
+    [ -r "/proc/$p/stat" ] || continue
+    total=$(( total + $(awk '{print $14 + $15}' "/proc/$p/stat") ))
+  done
+  echo "$total"
+}
+
+LAT_RATE=${LAT_RATE:-200000}
+LAT_DURATION=${LAT_DURATION:-30}
+CLK_TCK=$(getconf CLK_TCK)
+
 run_wrk() {  # server scenario round
-  local url log
+  local url log spids t0 t1 start end secs
   url=$(url_for "$1" "$2")
   log="$OUT/$2.$1.r$3.txt"
-  case $2 in
-    pipeline)
-      taskset -c "$CLIENT_CPUS" "$WRK" -t"$WRK_THREADS" -c"$CONNS" -d"${DURATION}s" --latency \
-        -s "$here/pipeline.lua" "$url" -- 16 > "$log" 2>&1 ;;
-    close)
-      taskset -c "$CLIENT_CPUS" "$WRK" -t"$WRK_THREADS" -c"$CONNS" -d"${DURATION}s" --latency \
-        -H "Connection: close" "$url" > "$log" 2>&1 ;;
-    *)
-      taskset -c "$CLIENT_CPUS" "$WRK" -t"$WRK_THREADS" -c"$CONNS" -d"${DURATION}s" --latency "$url" > "$log" 2>&1 ;;
-  esac
-  local rps
+  spids=$(server_pids "$1")
+  # shellcheck disable=SC2086
+  t0=$(cpu_ticks $spids)
+  start=$(date +%s.%N)
+  # `times` inside the subshell reports wrk's CPU time as the subshell's children.
+  (
+    case $2 in
+      pipeline)
+        taskset -c "$CLIENT_CPUS" "$WRK" -t"$WRK_THREADS" -c"$CONNS" -d"${DURATION}s" --latency \
+          -s "$here/pipeline.lua" "$url" -- 16 ;;
+      close)
+        taskset -c "$CLIENT_CPUS" "$WRK" -t"$WRK_THREADS" -c"$CONNS" -d"${DURATION}s" --latency \
+          -H "Connection: close" "$url" ;;
+      latency)
+        taskset -c "$CLIENT_CPUS" "$WRK2" -t"$WRK_THREADS" -c"$CONNS" -d"${LAT_DURATION}s" -R"$LAT_RATE" \
+          --latency "$url" ;;
+      *)
+        taskset -c "$CLIENT_CPUS" "$WRK" -t"$WRK_THREADS" -c"$CONNS" -d"${DURATION}s" --latency "$url" ;;
+    esac
+    times > "$log.times"  # not in a pipeline: line 2 is this subshell's children, i.e. wrk
+  ) > "$log" 2>&1
+  end=$(date +%s.%N)
+  # shellcheck disable=SC2086
+  t1=$(cpu_ticks $spids)
+  secs=$(python3 -c "print(max(float('$end') - float('$start'), 0.001))")
+  local server_cpu client_cpu rps
+  server_cpu=$(python3 -c "print(round(($t1 - $t0) / $CLK_TCK / $secs * 100))")
+  client_cpu=$(python3 -c 'import re,sys
+t=re.findall(r"(\d+)m([\d.]+)s", open(sys.argv[1]).read().splitlines()[-1])
+print(round(sum(int(m)*60+float(s) for m,s in t) / float(sys.argv[2]) * 100))' "$log.times" "$secs")
+  rm -f "$log.times"
+  echo "server_cpu_pct=$server_cpu client_cpu_pct=$client_cpu" >> "$log"
   rps=$(awk '/Requests\/sec/ {print $2}' "$log")
-  printf '%-9s %-6s r%s %12s req/s  p50 %-8s p99 %-8s %s\n' "$2" "$1" "$3" "$rps" \
-    "$(awk '$1=="50%" {print $2}' "$log")" "$(awk '$1=="99%" {print $2}' "$log")" \
-    "$(grep -E 'Non-2xx|Socket errors' "$log" | tr '\n' ' ')" | tee -a "$OUT/summary.txt"
+  if [ "$2" = latency ]; then
+    printf '%-9s %-6s r%s %12s req/s  p50 %-8s p99 %-8s p99.9 %-8s p99.99 %-8s cpu srv %s%% cli %s%% %s\n' \
+      "$2" "$1" "$3" "$rps" "$(awk '$1=="50.000%" {print $2}' "$log")" "$(awk '$1=="99.000%" {print $2}' "$log")" \
+      "$(awk '$1=="99.900%" {print $2}' "$log")" "$(awk '$1=="99.990%" {print $2}' "$log")" \
+      "$server_cpu" "$client_cpu" "$(grep -E 'Non-2xx|Socket errors' "$log" | tr '\n' ' ')" | tee -a "$OUT/summary.txt"
+  else
+    printf '%-9s %-6s r%s %12s req/s  p50 %-8s p99 %-8s cpu srv %s%% cli %s%% %s\n' "$2" "$1" "$3" "$rps" \
+      "$(awk '$1=="50%" {print $2}' "$log")" "$(awk '$1=="99%" {print $2}' "$log")" "$server_cpu" "$client_cpu" \
+      "$(grep -E 'Non-2xx|Socket errors' "$log" | tr '\n' ' ')" | tee -a "$OUT/summary.txt"
+  fi
 }
 
 servers="hws nginx"
