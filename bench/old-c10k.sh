@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Concurrency check for the pre-rewrite server (commit ab58a75): it closes any accepted socket
-# whose descriptor number exceeds 10000 and listens with a backlog of 128.
+# Concurrency check for the pre-rewrite server (the CGI server this repository held before hws): it
+# closes any accepted socket whose descriptor number exceeds 10000 and listens with a backlog of 128.
 #   OLD_BIN=/path/to/httpcgiservermain CONNS=15000 bench/old-c10k.sh
 set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
