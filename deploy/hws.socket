@@ -1,0 +1,13 @@
+# Socket activation: systemd binds the port (privileged ports work without granting the service
+# any capability) and passes it to hws via LISTEN_FDS. All workers share it with EPOLLEXCLUSIVE.
+[Unit]
+Description=hws HTTP server socket
+
+[Socket]
+ListenStream=8080
+Backlog=65535
+NoDelay=true
+ReusePort=false
+
+[Install]
+WantedBy=sockets.target

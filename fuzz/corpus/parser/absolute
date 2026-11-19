@@ -1,0 +1,5 @@
+GET http://h:8080/p?q=1 HTTP/1.0
+Connection: keep-alive
+If-None-Match: W/"x", "y"
+Range: bytes=0-9
+

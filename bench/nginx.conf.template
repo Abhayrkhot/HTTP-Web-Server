@@ -1,0 +1,40 @@
+# nginx configuration used for the comparison benchmarks. bench/run.sh fills in the
+# placeholders. Tuned the way a production nginx would be for this workload: one worker per
+# core with affinity, reuseport listeners, epoll, access log off, open_file_cache, sendfile,
+# and keepalive_requests raised so connections are not recycled mid-run (hws gets the same).
+worker_processes @WORKERS@;
+worker_cpu_affinity auto @CPUMASK@;
+worker_rlimit_nofile 524288;
+pid @PREFIX@/nginx.pid;
+error_log @PREFIX@/error.log warn;
+
+events {
+    worker_connections 262144;
+    use epoll;
+    multi_accept on;
+}
+
+http {
+    access_log off;
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65s;
+    keepalive_requests 10000000;
+    open_file_cache max=1024 inactive=60s;
+    open_file_cache_valid 60s;
+    types {
+        text/html html;
+        application/octet-stream bin;
+    }
+    default_type application/octet-stream;
+
+    server {
+        listen @ADDR@:@PORT@ reuseport backlog=65535;
+        root @ROOT@;
+        location = /hello {
+            default_type text/plain;
+            return 200 "Hello, World!";
+        }
+    }
+}

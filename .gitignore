@@ -1,0 +1,13 @@
+build*/
+/out/
+*.o
+*.a
+compile_commands.json
+.cache/
+__pycache__/
+*.pyc
+/bench/results/raw/
+crash-*
+leak-*
+timeout-*
+fuzz/findings/

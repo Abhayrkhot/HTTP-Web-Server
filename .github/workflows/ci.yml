@@ -1,0 +1,110 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: build + test (${{ matrix.cxx }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cxx: g++-14
+          - cxx: clang++-18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DHWS_WERROR=ON
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+      - name: Unit + integration tests
+        run: ctest --test-dir build --output-on-failure -j2
+      - name: Smoke benchmark (no assertions, catches gross regressions in logs)
+        run: |
+          ./build/hws --listen 127.0.0.1:18080 --hello-path /hello --log-level warn &
+          sleep 0.5
+          ./build/hws-connhold --port 18080 --path /hello --connections 2000 --interval 200 --duration 5000 --threads 2
+          kill %1
+
+  sanitizers:
+    name: sanitize (${{ matrix.sanitize }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitize: ["address,undefined", "thread"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install sanitizer runtimes
+        run: sudo apt-get update && sudo apt-get install -y libclang-rt-18-dev
+      - name: Allow TSan's shadow memory layout
+        if: matrix.sanitize == 'thread'
+        run: sudo sysctl vm.mmap_rnd_bits=28
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++-18
+          -DHWS_SANITIZE=${{ matrix.sanitize }} -DHWS_WERROR=ON
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+      - name: Tests
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: ctest --test-dir build --output-on-failure
+
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [parser, chunked, uri, misc]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install libFuzzer runtime
+        run: sudo apt-get update && sudo apt-get install -y libclang-rt-18-dev
+      - name: Build fuzzers
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DHWS_BUILD_FUZZERS=ON -DHWS_SANITIZE=address,undefined -DHWS_BUILD_TESTS=OFF -DHWS_BUILD_TOOLS=OFF
+          cmake --build build -j"$(nproc)" --target fuzz_${{ matrix.target }}
+      - name: Fuzz for 2 minutes
+        run: |
+          mkdir -p corpus
+          cp -r fuzz/corpus/${{ matrix.target }}/. corpus/ 2>/dev/null || true
+          ./build/fuzz/fuzz_${{ matrix.target }} corpus -max_total_time=120 -timeout=10 -rss_limit_mb=2048 \
+            -dict=fuzz/http.dict -print_final_stats=1
+      - name: Upload crashes
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: crash-*
+
+  docker:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -f deploy/Dockerfile -t hws:ci .
+      - name: Smoke test image
+        run: |
+          mkdir -p /tmp/www && echo ok > /tmp/www/index.html
+          docker run -d --name hws -p 18080:8080 -v /tmp/www:/srv/www:ro hws:ci
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18080/healthz && break; sleep 0.5; done
+          test "$(curl -fsS http://127.0.0.1:18080/)" = ok
+          curl -fsS http://127.0.0.1:18080/metrics | grep -q hws_build_info
+          docker stop -t 10 hws
+          test "$(docker inspect -f '{{.State.ExitCode}}' hws)" = 0
