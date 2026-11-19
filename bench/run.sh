@@ -38,6 +38,7 @@ ADDR=127.0.0.1
 
 ulimit -n "$(ulimit -Hn)"
 mkdir -p "$OUT"
+OUT=$(cd "$OUT" && pwd)  # absolute: start_old changes directory before writing its log
 work=$(mktemp -d)
 trap 'stop_all; rm -rf "$work"' EXIT
 
@@ -69,6 +70,7 @@ pids=()
 stop_all() {
   for p in "${pids[@]:-}"; do [ -n "$p" ] && kill "$p" 2>/dev/null || true; done
   [ -f "$work/nginx/nginx.pid" ] && kill "$(cat "$work/nginx/nginx.pid")" 2>/dev/null || true
+  pkill -x httpcgiserverma 2>/dev/null || true
   pids=()
   sleep 0.5
 }
@@ -123,7 +125,7 @@ server_pids() {  # PIDs whose CPU time counts as "the server"
   case $1 in
     hws) echo "${pids[-1]}" ;;
     nginx) pgrep -P "$(cat "$work/nginx/nginx.pid")" | tr '\n' ' ' ;;
-    old) pgrep -f '[h]ttpcgiservermain' | tr '\n' ' ' ;;
+    old) pgrep -x httpcgiserverma | tr '\n' ' ' ;;  # match the process name, not argv
   esac
 }
 
@@ -200,7 +202,8 @@ echo "# loadavg_before=$(cut -d' ' -f1-3 /proc/loadavg)" | tee -a "$OUT/summary.
 for scenario in $SCENARIOS; do
   for round in $(seq 1 "$ROUNDS"); do
     for s in $servers; do
-      [ "$s" = old ] && case $scenario in file*) continue ;; esac
+      # The pre-rewrite server has no static files, and its capacity is below LAT_RATE.
+      [ "$s" = old ] && case $scenario in file*|latency) continue ;; esac
       "start_$s"
       # warm-up: fill caches, let the CPU governor settle
       taskset -c "$CLIENT_CPUS" "$WRK" -t2 -c32 -d2s "$(url_for "$s" "$scenario")" >/dev/null 2>&1 || true

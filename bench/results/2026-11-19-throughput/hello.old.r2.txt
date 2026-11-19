@@ -1,0 +1,14 @@
+Running 15s test @ http://127.0.0.1:9508/cgi-bin/example
+  8 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     3.03ms  612.31us  21.48ms   66.74%
+    Req/Sec    10.62k   312.53    14.99k    80.33%
+  Latency Distribution
+     50%    3.32ms
+     75%    3.47ms
+     90%    3.57ms
+     99%    4.20ms
+  1267983 requests in 15.03s, 337.38MB read
+Requests/sec:  84371.02
+Transfer/sec:     22.45MB
+server_cpu_pct=241 client_cpu_pct=71

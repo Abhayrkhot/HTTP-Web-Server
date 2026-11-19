@@ -8,7 +8,25 @@ file cache and metrics. It serves static files and in-process handlers, and is b
 production: strict HTTP parsing, timeouts on every state, graceful draining, Prometheus metrics,
 systemd and container packaging, and a test suite that runs under ASan, UBSan, TSan and libFuzzer.
 
-<!-- RESULTS -->
+## Results
+
+Measured on one Linux laptop (Core i7-12700H), every server pinned to the same 4 CPUs, against
+nginx 1.30.7 configured for production. Medians of three interleaved rounds; method, every table
+and the raw output are in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+
+| | previous version | **hws** | nginx 1.30.7 |
+|---|---:|---:|---:|
+| keep-alive req/s, in-memory response | 85k (19% of nginx) | **570k (125%)** | 457k |
+| keep-alive req/s, 1 KiB static file | — | **474k (132%)** | 358k |
+| req/s with 16-deep pipelining | fails | **4.88M (860%)** | 567k |
+| p99 / p99.9 latency at a fixed 300k req/s | — | **2.9 / 6.4 ms** | 3.1 / 8.7 ms |
+| concurrent keep-alive connections held | 9,986 (hard cap) | **200,000** | 200,000 |
+| server memory at 200k connections | — | **56.5 MB** | 215.6 MB |
+| syscalls per small-file request | — | **2** | 5 |
+
+Large files (1 MiB, `sendfile`) and one-connection-per-request traffic tie with nginx: in both
+cases the load generator, not either server, was the bottleneck. 200k connections is this
+machine's limit (connection tracking and descriptor limits), not hws's.
 
 ## Features
 
@@ -127,7 +145,8 @@ docker build -t hws-fuzz fuzz/ && docker run --rm -v "$PWD:/src" -w /src hws-fuz
   deadline, second-signal stop. The harness fails a test if the server prints any sanitizer report.
 * **Fuzzing** (libFuzzer + ASan/UBSan): the request parser over pipelined streams, the chunked
   decoder (differential: byte-split vs one-shot), path normalization (no result may escape root or
-  keep dot segments), range/date/config parsers.
+  keep dot segments), range/date/config parsers. A 5-minute-per-target run executed 335 million
+  inputs (parser 34M, chunked 108M, uri 39M, misc 155M) with no findings; CI fuzzes every push.
 * **CI** runs all of the above on GCC 14 and Clang 18, plus a Docker image smoke test.
 
 ## Documentation

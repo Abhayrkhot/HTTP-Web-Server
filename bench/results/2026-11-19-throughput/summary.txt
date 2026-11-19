@@ -1,0 +1,56 @@
+# host=llm-server kernel=7.0.0-31-generic cpu="12th Gen Intel(R) Core(TM) i7-12700H"
+# server_cpus=0-3 client_cpus=4-11 workers=4 conns=256 threads=8 duration=15s rounds=3
+# hws=hws 2.0.0 nginx=1.30.7
+# loadavg_before=2.61 2.90 2.84
+hello     hws    r1    616794.90 req/s  p50 386.00us p99 579.00us cpu srv 397% cli 482% 
+hello     nginx  r1    513453.98 req/s  p50 491.00us p99 624.00us cpu srv 397% cli 430% 
+hello     old    r1     85118.46 req/s  p50 3.30ms   p99 4.03ms   cpu srv 244% cli 72% 
+hello     hws    r2    570234.06 req/s  p50 454.00us p99 614.00us cpu srv 397% cli 486% 
+hello     nginx  r2    457487.51 req/s  p50 539.00us p99 771.00us cpu srv 398% cli 436% 
+hello     old    r2     84371.02 req/s  p50 3.32ms   p99 4.20ms   cpu srv 241% cli 71% 
+hello     hws    r3    509413.08 req/s  p50 483.00us p99 840.00us cpu srv 397% cli 486% 
+hello     nginx  r3    453521.08 req/s  p50 548.00us p99 733.00us cpu srv 396% cli 434% 
+hello     old    r3     86778.65 req/s  p50 3.25ms   p99 3.99ms   cpu srv 244% cli 72% 
+file1k    hws    r1    474394.47 req/s  p50 517.00us p99 741.00us cpu srv 397% cli 475% 
+file1k    nginx  r1    358029.77 req/s  p50 698.00us p99 1.04ms   cpu srv 397% cli 344% 
+file1k    hws    r2    472778.09 req/s  p50 544.00us p99 0.88ms   cpu srv 397% cli 473% 
+file1k    nginx  r2    359419.62 req/s  p50 683.00us p99 0.93ms   cpu srv 397% cli 344% 
+file1k    hws    r3    473912.63 req/s  p50 533.00us p99 785.00us cpu srv 397% cli 473% 
+file1k    nginx  r3    357595.41 req/s  p50 729.00us p99 0.93ms   cpu srv 397% cli 345% 
+file16k   hws    r1    358432.35 req/s  p50 712.00us p99 1.02ms   cpu srv 397% cli 484% 
+file16k   nginx  r1    323981.28 req/s  p50 775.00us p99 1.04ms   cpu srv 397% cli 398% 
+file16k   hws    r2    357849.73 req/s  p50 733.00us p99 1.05ms   cpu srv 396% cli 481% 
+file16k   nginx  r2    324859.03 req/s  p50 804.00us p99 0.99ms   cpu srv 397% cli 399% 
+file16k   hws    r3    356588.31 req/s  p50 662.00us p99 1.05ms   cpu srv 396% cli 482% 
+file16k   nginx  r3    322787.89 req/s  p50 804.00us p99 1.09ms   cpu srv 397% cli 399% 
+file1m    hws    r1     20153.34 req/s  p50 6.45ms   p99 12.71ms  cpu srv 147% cli 796% 
+file1m    nginx  r1     20542.70 req/s  p50 6.34ms   p99 12.67ms  cpu srv 162% cli 796% 
+file1m    hws    r2     20273.30 req/s  p50 6.41ms   p99 12.67ms  cpu srv 147% cli 795% 
+file1m    nginx  r2     20518.29 req/s  p50 6.32ms   p99 12.74ms  cpu srv 163% cli 796% 
+file1m    hws    r3     20450.85 req/s  p50 6.36ms   p99 12.65ms  cpu srv 150% cli 796% 
+file1m    nginx  r3     20686.92 req/s  p50 6.31ms   p99 12.61ms  cpu srv 164% cli 797% 
+pipeline  hws    r1   4278568.97 req/s  p50 531.00us p99 0.00us   cpu srv 397% cli 400% 
+pipeline  nginx  r1    523055.89 req/s  p50 4.32ms   p99 9.97ms   cpu srv 398% cli 295% 
+pipeline  old    r1        34.06 req/s  p50 0.00us   p99 0.00us   cpu srv 1% cli 0%   Socket errors: connect 0, read 256, write 0, timeout 0 
+pipeline  hws    r2   4939934.30 req/s  p50 451.00us p99 0.95ms   cpu srv 397% cli 395% 
+pipeline  nginx  r2    566712.22 req/s  p50 4.15ms   p99 0.00us   cpu srv 398% cli 293% 
+pipeline  old    r2        34.01 req/s  p50 0.00us   p99 0.00us   cpu srv 1% cli 1%   Socket errors: connect 0, read 256, write 0, timeout 0 
+pipeline  hws    r3   4875931.95 req/s  p50 483.00us p99 0.00us   cpu srv 397% cli 390% 
+pipeline  nginx  r3    571296.45 req/s  p50 3.91ms   p99 10.08ms  cpu srv 398% cli 293% 
+pipeline  old    r3        34.06 req/s  p50 0.00us   p99 0.00us   cpu srv 1% cli 0%   Socket errors: connect 0, read 256, write 0, timeout 0 
+close     hws    r1    163657.97 req/s  p50 480.00us p99 6.65ms   cpu srv 353% cli 778% 
+close     nginx  r1    149594.56 req/s  p50 574.00us p99 6.10ms   cpu srv 365% cli 783% 
+close     old    r1     86510.57 req/s  p50 3.27ms   p99 4.34ms   cpu srv 245% cli 72% 
+close     hws    r2    141561.72 req/s  p50 559.00us p99 6.46ms   cpu srv 356% cli 783% 
+close     nginx  r2    141846.12 req/s  p50 602.00us p99 6.68ms   cpu srv 365% cli 780% 
+close     old    r2     86628.22 req/s  p50 3.26ms   p99 4.39ms   cpu srv 245% cli 72% 
+close     hws    r3    142515.80 req/s  p50 564.00us p99 6.39ms   cpu srv 357% cli 782% 
+close     nginx  r3    141814.43 req/s  p50 613.00us p99 6.37ms   cpu srv 366% cli 783% 
+close     old    r3     86054.24 req/s  p50 3.28ms   p99 4.29ms   cpu srv 243% cli 72% 
+latency   hws    r1    299209.36 req/s  p50 1.15ms   p99 2.90ms   p99.9 6.39ms   p99.99 9.13ms   cpu srv 201% cli 248% 
+latency   nginx  r1    299197.17 req/s  p50 1.20ms   p99 3.09ms   p99.9 5.82ms   p99.99 7.59ms   cpu srv 231% cli 257% 
+latency   hws    r2    299210.89 req/s  p50 1.16ms   p99 2.91ms   p99.9 6.58ms   p99.99 8.97ms   cpu srv 199% cli 248% 
+latency   nginx  r2    299202.42 req/s  p50 1.20ms   p99 3.08ms   p99.9 10.02ms  p99.99 13.61ms  cpu srv 232% cli 259% 
+latency   hws    r3    299205.15 req/s  p50 1.18ms   p99 2.82ms   p99.9 4.73ms   p99.99 6.20ms   cpu srv 198% cli 250% 
+latency   nginx  r3    299204.48 req/s  p50 1.19ms   p99 3.04ms   p99.9 8.70ms   p99.99 11.44ms  cpu srv 231% cli 257% 
+# loadavg_after=8.64 8.10 6.45

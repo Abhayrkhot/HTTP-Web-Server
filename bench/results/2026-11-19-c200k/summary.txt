@@ -1,0 +1,9 @@
+# host=llm-server kernel=7.0.0-31-generic conns=200000 server_cpus=0-3 workers=4 nofile=524288 conntrack_max=262144
+== nginx: 200000 connections, 1 request per 10000ms each, 60000ms
+SUMMARY target=200000 peak_alive=200000 final_alive=200000 connect_errors=0 requests=1100150 ok=1100150 non2xx=0 errors=0
+LATENCY_MS p50=0.121 p90=0.259 p99=0.540 p99.9=1.297 max=22.124 samples=1100150
+SERVER_RSS_MB before=113.9 at_peak=215.6 peak=215.6 per_conn_kb=0.52
+== hws: 200000 connections, 1 request per 10000ms each, 60000ms
+SUMMARY target=200000 peak_alive=200000 final_alive=200000 connect_errors=0 requests=1100130 ok=1100130 non2xx=0 errors=0
+LATENCY_MS p50=0.119 p90=0.256 p99=0.563 p99.9=1.611 max=18.846 samples=1100130
+SERVER_RSS_MB before=4.6 at_peak=56.5 peak=56.5 per_conn_kb=0.27
